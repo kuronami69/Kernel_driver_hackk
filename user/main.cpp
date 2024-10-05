@@ -3,53 +3,77 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
-#include "driver.hpp"
 
+// Utility functions
 uint64_t get_tick_count64()
 {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return (ts.tv_sec * 1000 + ts.tv_nsec / (1000 * 1000));
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (ts.tv_sec * 1000 + ts.tv_nsec / (1000 * 1000));
 }
 
-pid_t get_name_pid(char *name)
+pid_t get_name_pid(const char *name)
 {
-	FILE *fp;
-	pid_t pid;
-	char cmd[0x100] = "pidof ";
+    FILE *fp;
+    pid_t pid = -1;
+    char cmd[0x100];
 
-	strcat(cmd, name);
-	fp = popen(cmd, "r");
-	fscanf(fp, "%d", &pid);
-	pclose(fp);
-	return pid;
+    snprintf(cmd, sizeof(cmd), "pidof %s", name);
+    fp = popen(cmd, "r");
+    if (fp)
+    {
+        fscanf(fp, "%d", &pid);
+        pclose(fp);
+    }
+    else
+    {
+        perror("[-] Failed to execute pidof");
+    }
+    return pid;
 }
 
 int main(int argc, char const *argv[])
 {
+    c_driver driver;
 
-	uintptr_t base = 0;
-	uint64_t result = 0;
-	char module_name[0x100] = "libunity.so";
-	pid_t pid = get_name_pid((char *)"com.tencent.tmgp.sgame");
-	printf("pid = %d\n", pid);
+    const char *process_name = "com.tencent.tmgp.sgame";
+    const char *module_name = "libunity.so";
+    pid_t pid = get_name_pid(process_name);
+    if (pid <= 0)
+    {
+        fprintf(stderr, "[-] Failed to get PID for %s\n", process_name);
+        return 1;
+    }
 
-	driver->initialize(pid);
+    printf("pid = %d\n", pid);
 
-	base = driver->get_module_base(module_name);
-	printf("base = %lx\n", base);
+    if (!driver.initialize(pid))
+    {
+        fprintf(stderr, "[-] Driver initialization failed\n");
+        return 1;
+    }
 
-	{
-		size_t number = 1;
-		uint64_t now = get_tick_count64();
-		for (size_t i = 0; i < number; i++)
-		{
-			result = driver->read<uint64_t>(base);
-		}
-		printf("Read %ld times cost = %lfs\n", number,
-			   (double)(get_tick_count64() - now) / 1000);
-	}
-	printf("result = %lx\n", result);
+    uintptr_t base = driver.get_module_base(module_name);
+    if (base == 0)
+    {
+        fprintf(stderr, "[-] Failed to get base address for module %s\n", module_name);
+        return 1;
+    }
 
-	return 0;
+    printf("base = %lx\n", base);
+
+    const size_t read_count = 1;
+    uint64_t now = get_tick_count64();
+    uint64_t result = 0;
+
+    for (size_t i = 0; i < read_count; ++i)
+    {
+        result = driver.read<uint64_t>(base);
+    }
+
+    printf("Read %ld times took %lfs\n", read_count,
+           (double)(get_tick_count64() - now) / 1000.0);
+    printf("result = %lx\n", result);
+
+    return 0;
 }

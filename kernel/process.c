@@ -23,23 +23,28 @@ uintptr_t get_module_base(pid_t pid, char *name)
 	struct vma_iterator vmi;
 #endif
 
+	// 获取 pid 结构
 	pid_struct = find_get_pid(pid);
 	if (!pid_struct)
 	{
-		return false;
+		return 0;  // 错误处理，返回 0 表示失败
 	}
+
+	// 获取 task_struct
 	task = get_pid_task(pid_struct, PIDTYPE_PID);
 	if (!task)
 	{
-		return false;
+		return 0;  // 错误处理
 	}
+
+	// 获取 mm_struct
 	mm = get_task_mm(task);
 	if (!mm)
 	{
-		return false;
+		return 0;  // 错误处理
 	}
-	mmput(mm);
 
+	// 在使用完 mm 之后再释放
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
 	vma_iter_init(&vmi, mm, 0);
 	for_each_vma(vmi, vma)
@@ -52,13 +57,17 @@ uintptr_t get_module_base(pid_t pid, char *name)
 
 		if (vma->vm_file)
 		{
-			path_nm =
-				file_path(vma->vm_file, buf, ARC_PATH_MAX - 1);
-			if (!strcmp(kbasename(path_nm), name))
+			// 获取文件路径
+			path_nm = file_path(vma->vm_file, buf, ARC_PATH_MAX - 1);
+			// 检查路径是否有效
+			if (!IS_ERR(path_nm) && !strcmp(kbasename(path_nm), name))
 			{
-				return vma->vm_start;
+				mmput(mm);  // 在找到模块基地址后释放 mm
+				return vma->vm_start;  // 返回模块基地址
 			}
 		}
 	}
-	return 0;
+
+	mmput(mm);  // 没有找到模块时也需要释放 mm
+	return 0;   // 返回 0 表示没有找到
 }
