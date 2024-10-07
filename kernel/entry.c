@@ -20,20 +20,35 @@ int dispatch_close(struct inode *node, struct file *file)
 	return 0;
 }
 
-static long handle_init_key(unsigned long arg, bool *is_verified, char *key)
+static long handle_init_key(unsigned long arg, bool *is_verified)
 {
+	char key[0x100] = {0};
+	const char expected_key[] = "my_secret_key";  // 预期的密钥
 	if (!(*is_verified)) {
 		if (copy_from_user(key, (void __user *)arg, sizeof(key) - 1) != 0) {
 			return -EFAULT;
 		}
-		*is_verified = true;
-		printk("[+] Key initialized: %s\n", key);
+
+		if (strcmp(key, expected_key) == 0)
+		{
+			*is_verified = true;
+			printk("[+] Key initialized: %s\n", key);
+		}
+		else
+		{
+			return -EINVAL;
+		}
 	}
 	return 0;
 }
 
-static long handle_read_mem(unsigned long arg)
+static long handle_read_mem(unsigned long arg, bool is_check)
 {
+	if (!is_check)
+	{
+		return -EPERM;
+	}
+	
 	COPY_MEMORY cm;
 	if (copy_from_user(&cm, (void __user *)arg, sizeof(cm)) != 0) {
 		return -EFAULT;
@@ -44,8 +59,13 @@ static long handle_read_mem(unsigned long arg)
 	return 0;
 }
 
-static long handle_write_mem(unsigned long arg)
+static long handle_write_mem(unsigned long arg, bool is_check)
 {
+	if (!is_check)
+	{
+		return -EPERM;
+	}
+
 	COPY_MEMORY cm;
 	if (copy_from_user(&cm, (void __user *)arg, sizeof(cm)) != 0) {
 		return -EFAULT;
@@ -56,8 +76,13 @@ static long handle_write_mem(unsigned long arg)
 	return 0;
 }
 
-static long handle_module_base(unsigned long arg)
+static long handle_module_base(unsigned long arg, bool is_check)
 {
+	if (!is_check)
+	{
+		return -EPERM;
+	}
+
 	MODULE_BASE mb;
 	char name[0x100] = {0};
 
@@ -76,7 +101,6 @@ static long handle_module_base(unsigned long arg)
 
 long dispatch_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	static char key[0x100] = {0};
 	static bool is_verified = false;
 	long ret = 0;
 
@@ -84,16 +108,16 @@ long dispatch_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case OP_INIT_KEY:
-		ret = handle_init_key(arg, &is_verified, key);
+		ret = handle_init_key(arg, &is_verified);
 		break;
 	case OP_READ_MEM:
-		ret = handle_read_mem(arg);
+		ret = handle_read_mem(arg, is_verified);
 		break;
 	case OP_WRITE_MEM:
-		ret = handle_write_mem(arg);
+		ret = handle_write_mem(arg, is_verified);
 		break;
 	case OP_MODULE_BASE:
-		ret = handle_module_base(arg);
+		ret = handle_module_base(arg, is_verified);
 		break;
 	default:
 		ret = -EINVAL;

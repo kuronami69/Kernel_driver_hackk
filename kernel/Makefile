@@ -1,3 +1,2 @@
-obj-y += memory.o
-obj-y += process.o
-obj-y += entry.o
+obj-m += hide.o
+hide-objs := entry.o memory.o process.o

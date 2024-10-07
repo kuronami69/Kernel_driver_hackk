@@ -53,6 +53,14 @@ int main(int argc, char const *argv[])
         return 1;
     }
 
+    // 调用 OP_INIT_KEY 进行密钥初始化
+    char key[] = "my_secret_key";  // 你可以传递你需要的密钥
+    if (!driver->init_key(key))
+    {
+        printf("[-] Failed to initialize key\n");
+        return -1;
+    }
+
     uintptr_t base = driver.get_module_base(module_name);
     if (base == 0)
     {
