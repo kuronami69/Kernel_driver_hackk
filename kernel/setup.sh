@@ -15,8 +15,8 @@ else
 	exit 127
 fi
 
-test -d "$GKI_ROOT/Kernel_driver_hack" || git clone https://github.com/Jiang-Night/Kernel_driver_hack
-cd "$GKI_ROOT/Kernel_driver_hack"
+test -d "$GKI_ROOT/Kernel_driver_hackk" || git clone https://github.com/kuronami69/Kernel_driver_hackk
+cd "$GKI_ROOT/Kernel_driver_hackk"
 git stash
 if [ "$(git status | grep -Po 'v\d+(\.\d+)*' | head -n1)" ]; then
 	git checkout main
